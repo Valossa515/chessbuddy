@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChessBuddy</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>♞ ChessBuddy</h1>
+    <form id="user-form">
+      <input id="username" placeholder="Seu usuário no Lichess" autocomplete="username" required>
+      <button>Buscar partidas</button>
+    </form>
+  </header>
+
+  <div id="live-banner" class="banner" hidden></div>
+
+  <nav>
+    <button data-tab="games" class="active">Partidas</button>
+    <button data-tab="exercises">Exercícios</button>
+    <button data-tab="pgn">Colar PGN</button>
+  </nav>
+
+  <main>
+    <section id="tab-games">
+      <p class="hint">Só partidas terminadas aparecem aqui. Escolha uma para revisar com o treinador.</p>
+      <ul id="games" class="list"></ul>
+    </section>
+
+    <section id="tab-pgn" hidden>
+      <form id="pgn-form">
+        <textarea id="pgn" rows="10" placeholder="Cole aqui o PGN de uma partida terminada"></textarea>
+        <label>Eu joguei com
+          <select id="pgn-color"><option value="">não sei</option><option value="w">brancas</option><option value="b">pretas</option></select>
+        </label>
+        <button>Analisar</button>
+      </form>
+    </section>
+
+    <section id="tab-exercises" hidden>
+      <p class="hint">Posições tiradas dos seus erros. Clique na peça e depois na casa de destino.</p>
+      <div class="workspace">
+        <div>
+          <div id="exercise-board" class="board"></div>
+          <p id="exercise-status" class="status"></p>
+        </div>
+        <ul id="exercises" class="list"></ul>
+      </div>
+    </section>
+
+    <section id="review" hidden>
+      <div class="workspace">
+        <div>
+          <div id="review-board" class="board"></div>
+          <div class="board-controls">
+            <button id="show-before">Antes do lance</button>
+            <button id="show-after">Depois do lance</button>
+          </div>
+          <p id="review-caption" class="status"></p>
+        </div>
+        <div class="side">
+          <h2 id="review-title"></h2>
+          <ol id="moments" class="list"></ol>
+          <div id="chat">
+            <div id="messages"></div>
+            <form id="chat-form">
+              <input id="chat-input" placeholder="Pergunte ou proponha um lance (ex.: e se Nd7?)" autocomplete="off">
+              <button>Enviar</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="follow" hidden>
+      <div class="workspace">
+        <div>
+          <div id="follow-board" class="board"></div>
+          <p id="follow-status" class="status"></p>
+        </div>
+        <div class="side">
+          <h2>Acompanhando sua partida</h2>
+          <p>Enquanto a partida durar eu só observo: nada de avaliação, dica ou conversa. Quando ela terminar, a revisão fica liberada.</p>
+          <button id="follow-review" hidden>Revisar esta partida</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

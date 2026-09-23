@@ -1,0 +1,150 @@
+:root {
+  --bg: #f7f5f0;
+  --surface: #ffffff;
+  --text: #1f1d1a;
+  --muted: #6b665d;
+  --border: #ddd8cc;
+  --accent: #2f6f4f;
+  --accent-text: #ffffff;
+  --light-sq: #eeeed2;
+  --dark-sq: #769656;
+  --mark: rgba(255, 214, 0, 0.55);
+  --warn-bg: #fff4d6;
+  --warn-text: #6b4e00;
+  --bad: #b3261e;
+  --good: #2f6f4f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171614;
+    --surface: #22211e;
+    --text: #ece8df;
+    --muted: #a39e93;
+    --border: #3a3833;
+    --accent: #5fae84;
+    --accent-text: #0f1a14;
+    --light-sq: #b9b58f;
+    --dark-sq: #5d7a44;
+    --warn-bg: #3a3014;
+    --warn-text: #f3d98a;
+    --bad: #f2837b;
+    --good: #7fd1a4;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 16px/1.5 system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header, nav, main, .banner { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 16px;
+}
+
+h1 { font-size: 1.5rem; margin: 0; }
+h2 { font-size: 1.1rem; margin: 0 0 8px; }
+
+form { display: flex; gap: 8px; flex-wrap: wrap; }
+
+input, textarea, select, button {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+input, textarea { flex: 1; min-width: 0; }
+textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 0.9rem; }
+
+button { cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: default; }
+form > button, #follow-review { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+.banner {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+.banner button { margin-left: 8px; }
+
+nav { display: flex; gap: 4px; margin-top: 16px; border-bottom: 1px solid var(--border); }
+nav button { border: none; border-radius: 8px 8px 0 0; background: transparent; }
+nav button.active { background: var(--surface); font-weight: 600; }
+
+main { padding-top: 16px; padding-bottom: 32px; }
+
+.hint, .status { color: var(--muted); }
+
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.list li {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.list li.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.list small { color: var(--muted); display: block; }
+
+.tag { font-size: 0.8rem; padding: 1px 8px; border-radius: 99px; border: 1px solid currentColor; margin-left: 6px; }
+.tag.blunder { color: var(--bad); }
+.tag.mistake { color: var(--warn-text); }
+.tag.inaccuracy { color: var(--muted); }
+
+.workspace { display: grid; grid-template-columns: minmax(0, 480px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 800px) { .workspace { grid-template-columns: 1fr; } }
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  overflow: hidden;
+  user-select: none;
+}
+.square {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(22px, 7.5vw, 50px);
+  line-height: 1;
+  position: relative;
+}
+.square.light { background: var(--light-sq); }
+.square.dark { background: var(--dark-sq); }
+.square.mark::after, .square.picked::after { content: ""; position: absolute; inset: 0; background: var(--mark); }
+.square.picked::after { box-shadow: inset 0 0 0 3px var(--accent); background: transparent; }
+.piece { position: relative; z-index: 1; }
+.piece.w { color: #fff; text-shadow: 0 0 2px #000, 0 0 1px #000; }
+.piece.b { color: #111; }
+
+.board-controls { display: flex; gap: 8px; margin-top: 8px; }
+
+.side { display: grid; gap: 16px; }
+
+#chat { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 12px; display: grid; gap: 12px; }
+#messages { display: grid; gap: 8px; max-height: 420px; overflow-y: auto; }
+.msg { padding: 8px 12px; border-radius: 8px; white-space: pre-wrap; }
+.msg.assistant { background: var(--bg); }
+.msg.user { background: var(--accent); color: var(--accent-text); justify-self: end; max-width: 85%; }
+.msg.error { color: var(--bad); }
+
+.ok { color: var(--good); }
+.bad { color: var(--bad); }
