@@ -62,6 +62,12 @@ export interface GameAnalysis {
   plies: PlyAnalysis[];
   /** Indexes into `plies` of the decisive moments, in game order. */
   moments: number[];
+  /**
+   * Indexes into `plies` of the opponent's errors that the user could punish on
+   * the next move, in game order. Empty when the user's color is unknown, since
+   * `moments` then covers both sides. Missing on analyses saved before it existed.
+   */
+  opportunities?: number[];
   createdAt: string;
 }
 

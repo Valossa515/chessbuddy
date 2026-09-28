@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Chess, type Move } from "chess.js";
 import { scoreToCp, type Engine } from "./engine.ts";
 import type { Exercise, GameAnalysis } from "./types.ts";
 
@@ -44,6 +45,40 @@ export async function createExercises(engine: Engine, analysis: GameAnalysis, no
 
 export function isDue(exercise: Exercise, now = new Date()): boolean {
   return new Date(exercise.dueAt).getTime() <= now.getTime();
+}
+
+/** One move of a line, with the position it leads to, so the client can animate it without chess rules. */
+export interface LineStep {
+  san: string;
+  uci: string;
+  fen: string;
+}
+
+function toStep(move: Move): LineStep {
+  return { san: move.san, uci: move.from + move.to + (move.promotion ?? ""), fen: move.after };
+}
+
+/** Plays a UCI move from `fen`; undefined when it is illegal there. */
+export function playUci(fen: string, uci: string): LineStep | undefined {
+  try {
+    return toStep(new Chess(fen).move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] }));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Plays SAN moves from `fen`, stopping at the first illegal one. */
+export function playSan(fen: string, sanMoves: string[]): LineStep[] {
+  const board = new Chess(fen);
+  const steps: LineStep[] = [];
+  for (const san of sanMoves) {
+    try {
+      steps.push(toStep(board.move(san)));
+    } catch {
+      break;
+    }
+  }
+  return steps;
 }
 
 /** Records an answer: a right answer moves the puzzle up one box, a wrong one sends it back to the start. */

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { analyzeGame, classify, pickDecisiveMoments, uciLineToSan, winningChances } from "../src/analysis.ts";
+import { analyzeGame, classify, pickDecisiveMoments, pickOpportunities, uciLineToSan, winningChances } from "../src/analysis.ts";
 import { Engine } from "../src/engine.ts";
 import type { PlyAnalysis } from "../src/types.ts";
 
@@ -30,6 +30,16 @@ test("pickDecisiveMoments keeps the player's worst moves in game order", () => {
   const plies = [ply("w", 0.5, "blunder"), ply("b", 0.35, "blunder"), ply("w", 0, "best"), ply("b", 0.15, "inaccuracy"), ply("b", 0.22, "mistake")];
   assert.deepEqual(pickDecisiveMoments(plies, "b", 2), [1, 4]);
   assert.deepEqual(pickDecisiveMoments(plies, undefined, 5), [0, 1, 3, 4]);
+});
+
+test("pickOpportunities keeps the opponent's errors the player got to answer", () => {
+  const ply = (color: "w" | "b", winDrop: number, classification: PlyAnalysis["classification"]) =>
+    ({ color, winDrop, classification }) as PlyAnalysis;
+  // The last ply is an error nobody answered, so it is not a chance to punish.
+  const plies = [ply("w", 0.5, "blunder"), ply("b", 0.35, "blunder"), ply("w", 0, "best"), ply("b", 0.15, "inaccuracy"), ply("w", 0, "good"), ply("b", 0.22, "mistake")];
+  assert.deepEqual(pickOpportunities(plies, "w", 5), [1, 3]);
+  assert.deepEqual(pickOpportunities(plies, "w", 1), [1]);
+  assert.deepEqual(pickOpportunities(plies, undefined, 5), []);
 });
 
 test("analyzeGame finds Black's decisive errors in the Opera Game", { timeout: 120_000 }, async () => {

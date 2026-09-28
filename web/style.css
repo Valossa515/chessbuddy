@@ -55,6 +55,7 @@ header {
 
 h1 { font-size: 1.5rem; margin: 0; }
 h2 { font-size: 1.1rem; margin: 0 0 8px; }
+h3 { font-size: 1rem; margin: 0 0 8px; color: var(--muted); }
 
 form { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -112,7 +113,9 @@ main { padding-top: 16px; padding-bottom: 32px; }
 
 .board {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  /* Fixed tracks: a rank with no pieces must not collapse. */
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr));
   width: 100%;
   aspect-ratio: 1;
   border-radius: 6px;
@@ -132,10 +135,39 @@ main { padding-top: 16px; padding-bottom: 32px; }
 .square.mark::after, .square.picked::after { content: ""; position: absolute; inset: 0; background: var(--mark); }
 .square.picked::after { box-shadow: inset 0 0 0 3px var(--accent); background: transparent; }
 .piece { position: relative; z-index: 1; }
+.piece.moving { z-index: 2; }
+
+/* Coordinates inside the edge squares, in the opposite square color, like Lichess. */
+.coord { position: absolute; font-size: clamp(9px, 1.4vw, 12px); font-weight: 700; line-height: 1; }
+.coord.file { right: 3px; bottom: 3px; }
+.coord.rank { left: 3px; top: 3px; }
+.square.light .coord { color: var(--dark-sq); }
+.square.dark .coord { color: var(--light-sq); }
+
+.board-frame { display: flex; gap: 8px; }
+.board-wrap { position: relative; flex: 1; min-width: 0; }
+
+/* Evaluation bar: the white share grows from White's side of the board. */
+.eval-bar { position: relative; flex: none; width: 22px; border-radius: 4px; overflow: hidden; background: #3d3a36; }
+.eval-white { position: absolute; left: 0; right: 0; bottom: 0; height: 50%; background: #f1efe9; transition: height 0.4s ease; }
+.eval-bar.flipped .eval-white { top: 0; bottom: auto; }
+.eval-label { position: absolute; left: 0; right: 0; text-align: center; font-size: 10px; font-weight: 700; line-height: 1; }
+.eval-label.bottom { bottom: 4px; }
+.eval-label.top { top: 4px; }
+.eval-label.on-white { color: #3d3a36; }
+.eval-label.on-black { color: #f1efe9; }
+
+.arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+.arrows .shape { fill: #15781b; stroke: #15781b; opacity: 0.8; }
 .piece.w { color: #fff; text-shadow: 0 0 2px #000, 0 0 1px #000; }
 .piece.b { color: #111; }
 
 .board-controls { display: flex; gap: 8px; margin-top: 8px; }
+
+.line { margin: 8px 0 0; }
+.line .label { color: var(--muted); margin-right: 4px; }
+.line button { border: none; background: transparent; padding: 2px 4px; border-radius: 4px; }
+.line button.current { background: var(--accent); color: var(--accent-text); }
 
 .side { display: grid; gap: 16px; }
 

@@ -40,11 +40,26 @@
     </section>
 
     <section id="tab-exercises" hidden>
-      <p class="hint">Posições tiradas dos seus erros. Clique na peça e depois na casa de destino.</p>
+      <p class="hint">Posições tiradas dos seus erros. Clique na peça e depois na casa de destino. Com o botão direito, arraste para desenhar setas ou clique para marcar uma casa.</p>
       <div class="workspace">
         <div>
-          <div id="exercise-board" class="board"></div>
+          <div class="board-frame">
+            <div id="exercise-eval" class="eval-bar"><div class="eval-white"></div><span class="eval-label"></span></div>
+            <div class="board-wrap">
+              <div id="exercise-board" class="board"></div>
+              <svg id="exercise-arrows" class="arrows" viewBox="0 0 8 8" aria-hidden="true"></svg>
+            </div>
+          </div>
           <p id="exercise-status" class="status"></p>
+          <div id="exercise-replay" hidden>
+            <div class="board-controls">
+              <button data-step="start" aria-label="Posição inicial">⏮</button>
+              <button data-step="prev" aria-label="Lance anterior">◀</button>
+              <button data-step="next" aria-label="Próximo lance">▶</button>
+              <button data-step="play">Rever solução</button>
+            </div>
+            <p id="exercise-line" class="line"></p>
+          </div>
         </div>
         <ul id="exercises" class="list"></ul>
       </div>
@@ -53,7 +68,10 @@
     <section id="review" hidden>
       <div class="workspace">
         <div>
-          <div id="review-board" class="board"></div>
+          <div class="board-frame">
+            <div id="review-eval" class="eval-bar"><div class="eval-white"></div><span class="eval-label"></span></div>
+            <div class="board-wrap"><div id="review-board" class="board"></div></div>
+          </div>
           <div class="board-controls">
             <button id="show-before">Antes do lance</button>
             <button id="show-after">Depois do lance</button>
@@ -63,6 +81,10 @@
         <div class="side">
           <h2 id="review-title"></h2>
           <ol id="moments" class="list"></ol>
+          <div id="opportunities-box" hidden>
+            <h3>Chances que o adversário deu</h3>
+            <ol id="opportunities" class="list"></ol>
+          </div>
           <div id="chat">
             <div id="messages"></div>
             <form id="chat-form">

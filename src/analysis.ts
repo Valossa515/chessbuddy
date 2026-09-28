@@ -104,6 +104,7 @@ export async function analyzeGame(engine: Engine, game: GameRecord, options: Ana
     depth: options.depth,
     plies,
     moments: pickDecisiveMoments(plies, game.playerColor, options.maxMoments ?? 5),
+    opportunities: pickOpportunities(plies, game.playerColor, options.maxMoments ?? 5),
     createdAt: new Date().toISOString(),
   };
 }
@@ -113,9 +114,24 @@ export async function analyzeGame(engine: Engine, game: GameRecord, options: Ana
  * restricted to the user's own moves when we know which side they played.
  */
 export function pickDecisiveMoments(plies: PlyAnalysis[], playerColor: Color | undefined, max: number): number[] {
+  return worstErrors(plies, (ply) => !playerColor || ply.color === playerColor, max);
+}
+
+/**
+ * The opponent's biggest errors that the user got to answer: chances to punish.
+ * Only when we know the user's side; otherwise `pickDecisiveMoments` already
+ * includes both. A missed punishment also shows up as a moment of its own,
+ * since failing to punish drops the user's winning chances.
+ */
+export function pickOpportunities(plies: PlyAnalysis[], playerColor: Color | undefined, max: number): number[] {
+  if (!playerColor) return [];
+  return worstErrors(plies, (ply, index) => ply.color !== playerColor && index + 1 < plies.length, max);
+}
+
+function worstErrors(plies: PlyAnalysis[], keep: (ply: PlyAnalysis, index: number) => boolean, max: number): number[] {
   return plies
     .map((ply, index) => ({ ply, index }))
-    .filter(({ ply }) => !playerColor || ply.color === playerColor)
+    .filter(({ ply, index }) => keep(ply, index))
     .filter(({ ply }) => ply.classification === "inaccuracy" || ply.classification === "mistake" || ply.classification === "blunder")
     .sort((a, b) => b.ply.winDrop - a.ply.winDrop)
     .slice(0, max)

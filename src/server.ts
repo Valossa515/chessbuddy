@@ -4,14 +4,14 @@ import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Chess } from "chess.js";
-import { analyzeGame } from "./analysis.ts";
+import { analyzeGame, pickOpportunities } from "./analysis.ts";
 import { Coach, parseHistory } from "./coach.ts";
-import { Engine } from "./engine.ts";
-import { answerExercise, createExercises, isDue } from "./exercises.ts";
+import { Engine, scoreToCp } from "./engine.ts";
+import { answerExercise, createExercises, isDue, playSan, playUci } from "./exercises.ts";
 import { assertGameFinished, Guard, GuardrailError, pgnResult } from "./guardrail.ts";
 import { fetchGame, fetchPlayingStatus, fetchRecentGames, streamGame } from "./lichess.ts";
 import { Store } from "./store.ts";
-import type { Color, GameRecord } from "./types.ts";
+import type { Color, GameAnalysis, GameRecord } from "./types.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
@@ -60,6 +60,32 @@ async function serveStatic(res: ServerResponse, path: string): Promise<void> {
   });
   res.writeHead(200, { "Content-Type": `${STATIC[extname(file)]}; charset=utf-8` });
   res.end(content);
+}
+
+/** Analyses saved before opportunities existed get them computed on the way out. */
+function withOpportunities(analysis: GameAnalysis): GameAnalysis {
+  return analysis.opportunities ? analysis : { ...analysis, opportunities: pickOpportunities(analysis.plies, analysis.game.playerColor, 5) };
+}
+
+/**
+ * White-POV centipawns for each position, for the evaluation bar. The guard
+ * keeps the engine off during a live game; then every value is left undefined
+ * and the bar stays empty.
+ */
+async function evaluate(fens: string[], username?: string): Promise<(number | undefined)[]> {
+  try {
+    await guard.assertCoachAllowed(username);
+  } catch (error) {
+    if (error instanceof GuardrailError) return fens.map(() => undefined);
+    throw error;
+  }
+  const evals: (number | undefined)[] = [];
+  for (const fen of fens) {
+    const [line] = await engine.analyse(fen, DEPTH);
+    const cp = line ? scoreToCp(line.score) : undefined;
+    evals.push(cp === undefined ? undefined : fen.split(" ")[1] === "w" ? cp : -cp);
+  }
+  return evals;
 }
 
 /** Builds the game to analyse from a Lichess id or a pasted PGN, refusing unfinished games. */
@@ -114,7 +140,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     const game = await resolveGame(body);
     assertGameFinished(game);
     const existing = store.findAnalysisByGame(game.id);
-    if (existing) return send(res, 200, existing);
+    if (existing) return send(res, 200, withOpportunities(existing));
     const analysis = await analyzeGame(engine, game, { depth: DEPTH });
     store.putAnalysis(analysis);
     store.putExercises(await createExercises(engine, analysis));
@@ -125,7 +151,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
   if (req.method === "GET" && analysisMatch) {
     const analysis = store.getAnalysis(analysisMatch[1]);
     if (!analysis) throw new HttpError(404, "Análise não encontrada");
-    return send(res, 200, analysis);
+    return send(res, 200, withOpportunities(analysis));
   }
 
   if (req.method === "POST" && path === "/api/coach") {
@@ -134,37 +160,54 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     const analysis = store.getAnalysis(String(body.analysisId ?? ""));
     if (!analysis) throw new HttpError(404, "Análise não encontrada");
     assertGameFinished(analysis.game);
-    const ply = analysis.plies[Number(body.plyIndex)];
+    const plyIndex = Number(body.plyIndex);
+    const ply = analysis.plies[plyIndex];
     if (!ply) throw new HttpError(400, "Lance inválido");
+    const kind = body.kind === "opportunity" ? "opportunity" : "error";
+    if (kind === "opportunity" && !withOpportunities(analysis).opportunities!.includes(plyIndex)) {
+      throw new HttpError(400, "Esse lance não é uma chance do adversário nesta partida");
+    }
     let history;
     try {
       history = parseHistory(body.messages);
     } catch (error) {
       throw new HttpError(400, (error as Error).message);
     }
-    return send(res, 200, { reply: await coach.reply(analysis, ply, history) });
+    return send(res, 200, { reply: await coach.reply(analysis, ply, history, kind) });
   }
 
   if (req.method === "GET" && path === "/api/exercises") {
     const due = url.searchParams.get("due") !== "false";
     const exercises = store.listExercises().filter((exercise) => !due || isDue(exercise));
-    // Solutions stay on the server until the user answers.
-    return send(res, 200, exercises.map(({ solutionsUci, bestLineSan, ...rest }) => rest));
+    // Solutions stay on the server until the user answers. The evaluation of the
+    // puzzle position was already computed when the game was analysed.
+    return send(res, 200, exercises.map(({ solutionsUci, bestLineSan, ...rest }) => ({
+      ...rest,
+      eval: store.getAnalysis(rest.analysisId)?.plies[rest.ply - 1]?.evalBefore,
+    })));
   }
 
   const answerMatch = path.match(/^\/api\/exercises\/([\w-]+)\/answer$/);
   if (req.method === "POST" && answerMatch) {
     const exercise = store.getExercise(answerMatch[1]);
     if (!exercise) throw new HttpError(404, "Exercício não encontrado");
-    const uci = optionalString((await readJson(req)).uci);
+    const body = await readJson(req);
+    const uci = optionalString(body.uci);
     if (!uci) throw new HttpError(400, "Envie o lance em UCI (ex. e2e4)");
-    const { correct, exercise: updated } = answerExercise(exercise, uci);
+    // An illegal click is not an answer: it must not cost the puzzle its box.
+    const played = playUci(exercise.fen, uci);
+    if (!played) throw new HttpError(400, "Esse lance não é legal nessa posição. Tente outro.");
+    const { correct, exercise: updated } = answerExercise(exercise, played.uci);
     store.putExercises([updated]);
+    const line = playSan(exercise.fen, updated.bestLineSan);
+    const [playedEval, ...lineEvals] = await evaluate([played.fen, ...line.map((step) => step.fen)], optionalString(body.username));
     return send(res, 200, {
       correct,
       solutionSan: updated.bestLineSan[0],
       bestLineSan: updated.bestLineSan,
       nextReview: updated.dueAt,
+      played: { ...played, eval: playedEval },
+      line: line.map((step, i) => ({ ...step, eval: lineEvals[i] })),
     });
   }
 

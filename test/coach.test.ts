@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type Anthropic from "@anthropic-ai/sdk";
-import { Coach, parseHistory } from "../src/coach.ts";
+import { Coach, momentBriefing, parseHistory } from "../src/coach.ts";
 import type { Engine } from "../src/engine.ts";
 import type { GameAnalysis } from "../src/types.ts";
 
@@ -45,6 +45,29 @@ test("the coach asks Stockfish before answering about a proposed move", async ()
   assert.equal(toolResult.type, "tool_result");
   assert.match(String(toolResult.content), /"lance":"e4"/);
   assert.match(String(toolResult.content), /"melhor_continuacao":\["d5"\]/);
+});
+
+test("an opportunity briefing covers the opponent's error and the user's reply", () => {
+  const damiano = {
+    ...analysis,
+    game: { ...analysis.game, result: "1-0", pgn: "1. e4 e5 2. Nf3 f6 3. Nxe5 1-0" },
+    plies: [
+      {
+        ...analysis.plies[0], ply: 4, moveNumber: 2, color: "b", san: "f6", uci: "f7f6", classification: "mistake",
+        evalBefore: 30, evalAfter: 250, fenAfter: "rnbqkbnr/pppp2pp/5p2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3",
+      },
+      {
+        ...analysis.plies[0], ply: 5, moveNumber: 3, color: "w", san: "Nxe5", uci: "f3e5", classification: "best",
+        bestMoveSan: "Nxe5", bestLineSan: ["Nxe5", "fxe5", "Qh5+"], evalAfter: 260,
+      },
+    ],
+    opportunities: [0],
+  } as GameAnalysis;
+  const briefing = momentBriefing(damiano, damiano.plies[0], "opportunity");
+  assert.match(briefing, /chance de punir\. O adversário jogou 2\.\.\. f6 \(erro\)/);
+  assert.match(briefing, /Lances até o momento: e4 e5 Nf3 f6\n/);
+  assert.match(briefing, /Melhor resposta segundo o Stockfish: Nxe5; linha: Nxe5 fxe5 Qh5\+/);
+  assert.match(briefing, /O aluno respondeu 3\. Nxe5 \(melhor lance\)/);
 });
 
 test("parseHistory enforces coach-first alternating turns ending with the user", () => {

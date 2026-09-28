@@ -48,19 +48,47 @@ function pawns(cp: number): string {
   return (cp / 100).toFixed(2);
 }
 
+/**
+ * What a review moment is about: one of the user's errors, or an error by the
+ * opponent that the user could punish on the next move.
+ */
+export type MomentKind = "error" | "opportunity";
+
+function moveLabel(ply: PlyAnalysis): string {
+  return `${ply.moveNumber}${ply.color === "w" ? "." : "..."} ${ply.san}`;
+}
+
 /** The facts the coach is allowed to talk about, as a compact text block. */
-export function momentBriefing(analysis: GameAnalysis, ply: PlyAnalysis): string {
+export function momentBriefing(analysis: GameAnalysis, ply: PlyAnalysis, kind: MomentKind = "error"): string {
   const { game } = analysis;
   const board = new Chess();
   board.loadPgn(game.pgn);
-  const history = board.history().slice(0, ply.ply - 1);
   const color = ply.color === "w" ? "brancas" : "pretas";
   const player = game.playerColor ? (game.playerColor === "w" ? "brancas" : "pretas") : "desconhecido";
-  return [
+  const header = [
     `Partida: ${game.white} (brancas) x ${game.black} (pretas), resultado ${game.result}${game.opening ? `, abertura ${game.opening}` : ""}.`,
     `O aluno jogou com: ${player}.`,
+  ];
+  if (kind === "opportunity") {
+    const reply = analysis.plies[analysis.plies.indexOf(ply) + 1];
+    return [
+      ...header,
+      `Lances até o momento: ${board.history().slice(0, ply.ply).join(" ")}`,
+      `Momento: chance de punir. O adversário jogou ${moveLabel(ply)} (${LABELS[ply.classification]}).`,
+      `Avaliação antes do erro do adversário: ${pawns(ply.evalBefore)}; depois: ${pawns(ply.evalAfter)} (peões, ponto de vista das brancas).`,
+      `FEN depois do erro (vez do aluno): ${ply.fenAfter}`,
+      `Melhor resposta segundo o Stockfish: ${reply?.bestMoveSan ?? "?"}; linha: ${reply?.bestLineSan.join(" ") ?? ""}`,
+      reply
+        ? `O aluno respondeu ${moveLabel(reply)} (${LABELS[reply.classification]}); avaliação depois: ${pawns(reply.evalAfter)}.`
+        : "A partida terminou sem resposta do aluno.",
+      "Foco: esta é uma chance que o adversário deu. Ajude o aluno a enxergar o erro do adversário e como puni-lo. Se ele aproveitou, reconheça e explique por que o lance funciona.",
+    ].join("\n");
+  }
+  const history = board.history().slice(0, ply.ply - 1);
+  return [
+    ...header,
     `Lances até o momento: ${history.join(" ") || "(início)"}`,
-    `Momento: lance ${ply.moveNumber}${ply.color === "w" ? "." : "..."} ${ply.san} das ${color} (${LABELS[ply.classification]}).`,
+    `Momento: lance ${moveLabel(ply)} das ${color} (${LABELS[ply.classification]}).`,
     `FEN antes do lance: ${ply.fenBefore}`,
     `Avaliação antes: ${pawns(ply.evalBefore)}; depois: ${pawns(ply.evalAfter)} (peões, ponto de vista das brancas).`,
     `Melhor lance segundo o Stockfish: ${ply.bestMoveSan ?? "?"}; linha: ${ply.bestLineSan.join(" ")}`,
@@ -108,11 +136,11 @@ export class Coach {
    * One coach turn about a decisive moment. `history` is the visible
    * conversation so far, starting with the coach's first message.
    */
-  async reply(analysis: GameAnalysis, ply: PlyAnalysis, history: ChatTurn[]): Promise<string> {
+  async reply(analysis: GameAnalysis, ply: PlyAnalysis, history: ChatTurn[], kind: MomentKind = "error"): Promise<string> {
     const messages: Anthropic.Beta.BetaMessageParam[] = [
       {
         role: "user",
-        content: `${momentBriefing(analysis, ply)}\n\nComece a revisão deste momento.`,
+        content: `${momentBriefing(analysis, ply, kind)}\n\nComece a revisão deste momento.`,
       },
       ...history.map((turn) => ({ role: turn.role, content: turn.content })),
     ];
