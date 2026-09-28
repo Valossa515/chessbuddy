@@ -13,6 +13,9 @@
   --warn-text: #6b4e00;
   --bad: #b3261e;
   --good: #2f6f4f;
+  --buddy: #3f8f65;
+  --buddy-shade: #2f6f4f;
+  --buddy-ink: #1f1d1a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,6 +33,8 @@
     --warn-text: #f3d98a;
     --bad: #f2837b;
     --good: #7fd1a4;
+    --buddy: #5fae84;
+    --buddy-shade: #3f8a63;
   }
 }
 
@@ -180,3 +185,108 @@ main { padding-top: 16px; padding-bottom: 32px; }
 
 .ok { color: var(--good); }
 .bad { color: var(--bad); }
+
+/* ---------- Buddy, the mascot ---------- */
+
+#buddy {
+  position: fixed;
+  right: 16px;
+  bottom: 12px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+#buddy > * { pointer-events: auto; }
+
+#buddy-body { width: 84px; padding: 0; border: none; border-radius: 50%; background: transparent; }
+#buddy-body:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+#buddy svg { display: block; width: 100%; overflow: visible; }
+
+#buddy-bubble {
+  position: relative;
+  max-width: min(260px, calc(100vw - 32px));
+  margin-right: 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  font-size: 0.9rem;
+  cursor: pointer;
+  animation: buddy-pop 0.18s ease-out;
+}
+#buddy-bubble::after {
+  content: "";
+  position: absolute;
+  right: 22px;
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  transform: rotate(45deg);
+}
+
+#buddy .skin { fill: var(--buddy); }
+#buddy .shade { fill: var(--buddy-shade); }
+#buddy .glint { fill: #fff; opacity: 0.3; }
+#buddy .cheek { fill: #ff8a8a; opacity: 0.45; }
+#buddy .eye { fill: #fff; }
+#buddy .ink { fill: var(--buddy-ink); }
+#buddy .line { fill: none; stroke: var(--buddy-ink); stroke-width: 2.6; stroke-linecap: round; }
+#buddy .shadow { fill: rgba(0, 0, 0, 0.15); }
+#buddy .dots circle { fill: var(--muted); }
+#buddy .zz text { fill: var(--muted); font: 700 9px system-ui, sans-serif; }
+
+#buddy .bob { animation: buddy-bob 3.2s ease-in-out infinite; }
+#buddy .hop, #buddy .tilt { transform-box: fill-box; transform-origin: 50% 100%; }
+#buddy .tilt { transition: transform 0.3s ease; }
+#buddy .eyes { transform-box: fill-box; transform-origin: center; animation: buddy-blink 5s infinite; }
+#buddy .pupils { transition: transform 0.15s ease-out; }
+
+/* Each mood shows its own eyes and mouth; everything optional starts hidden. */
+#buddy .mouth, #buddy .happy-eyes, #buddy .sleep-eyes, #buddy .brows, #buddy .dots, #buddy .zz { display: none; }
+#buddy[data-mood="idle"] .mouth-smile,
+#buddy[data-mood="happy"] .mouth-open,
+#buddy[data-mood="talking"] .mouth-open,
+#buddy:is([data-mood="thinking"], [data-mood="watching"], [data-mood="sleeping"]) .mouth-flat,
+#buddy[data-mood="sad"] .mouth-sad,
+#buddy[data-mood="sad"] .brows,
+#buddy[data-mood="happy"] .happy-eyes,
+#buddy[data-mood="sleeping"] .sleep-eyes,
+#buddy[data-mood="thinking"] .dots,
+#buddy[data-mood="sleeping"] .zz { display: inline; }
+#buddy:is([data-mood="happy"], [data-mood="sleeping"]) .eyes { display: none; }
+
+#buddy[data-mood="thinking"] .pupils { transform: translate(2.5px, -3.5px); }
+#buddy[data-mood="watching"] .pupils { transform: translate(-2px, 3px); }
+#buddy[data-mood="thinking"] .tilt { transform: rotate(5deg); }
+#buddy[data-mood="sad"] .tilt { transform: rotate(-6deg); }
+#buddy[data-mood="sleeping"] .bob { animation-duration: 5s; }
+#buddy[data-mood="talking"] .mouth-open { transform-box: fill-box; transform-origin: 50% 0; animation: buddy-talk 0.22s ease-in-out infinite alternate; }
+#buddy .dots circle { animation: buddy-pulse 1.2s ease-in-out infinite; }
+#buddy .dots circle:nth-child(2) { animation-delay: 0.2s; }
+#buddy .dots circle:nth-child(3) { animation-delay: 0.4s; }
+#buddy .zz text { animation: buddy-pulse 2.4s ease-in-out infinite; }
+#buddy .zz text:nth-child(2) { animation-delay: 0.6s; }
+#buddy .zz text:nth-child(3) { animation-delay: 1.2s; }
+
+@keyframes buddy-bob { 50% { transform: translateY(-3px); } }
+@keyframes buddy-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+@keyframes buddy-talk { to { transform: scaleY(0.35); } }
+@keyframes buddy-pulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+@keyframes buddy-pop { from { opacity: 0; transform: translateY(6px) scale(0.96); } }
+
+@media (prefers-reduced-motion: reduce) {
+  #buddy *, #buddy-bubble { animation: none !important; transition: none !important; }
+}
+
+/* Leave room at the end of the page so the buddy never hides the last controls. */
+main { padding-bottom: 120px; }
+@media (max-width: 800px) {
+  #buddy-body { width: 64px; }
+}

@@ -229,6 +229,110 @@ function enableDrawing(board, svg) {
 
 const exerciseDrawing = enableDrawing($("#exercise-board"), $("#exercise-arrows"));
 
+// ---------- buddy ----------
+
+const SLEEP_MS = 90_000;
+const TIPS = [
+  "Me pergunta \"e se Nd7?\" que eu confiro o lance no Stockfish.",
+  "Nos exercícios, arraste com o botão direito para desenhar setas no tabuleiro.",
+  "Os exercícios voltam em alguns dias. Acertou, eles demoram mais para voltar.",
+  "Em \"Chances que o adversário deu\" ficam os erros dele que você podia punir.",
+  "Enquanto você joga no Lichess eu só observo. Nada de dica durante a partida!",
+  "Quer revisar uma partida de fora do Lichess? Cole o PGN na aba \"Colar PGN\".",
+];
+
+/**
+ * The buddy's face. A passing mood (happy, sad, talking) wins over the
+ * lasting ones: thinking while a request runs, watching during a live game,
+ * sleeping after a while without activity.
+ */
+const buddyState = { mood: null, busy: 0, watching: false, sleeping: false, lastActivity: Date.now(), moodTimer: null, bubbleTimer: null, pokes: [], tip: -1 };
+
+function renderBuddy() {
+  const b = buddyState;
+  $("#buddy").dataset.mood = b.mood ?? (b.busy ? "thinking" : b.watching ? "watching" : b.sleeping ? "sleeping" : "idle");
+}
+
+/** Shows `mood` for a moment and, when given, says `text` in the bubble. */
+function buddy(mood, text, ms = 4500) {
+  clearTimeout(buddyState.moodTimer);
+  buddyState.mood = mood;
+  if (mood) buddyState.moodTimer = setTimeout(() => { buddyState.mood = null; renderBuddy(); }, Math.min(ms, 2500));
+  renderBuddy();
+  if (mood === "happy") buddyHop();
+  if (!text) return;
+  const bubble = $("#buddy-bubble");
+  bubble.textContent = text;
+  // Re-inserting restarts the pop-in animation.
+  bubble.hidden = true;
+  void bubble.offsetWidth;
+  bubble.hidden = false;
+  clearTimeout(buddyState.bubbleTimer);
+  buddyState.bubbleTimer = setTimeout(() => { bubble.hidden = true; }, ms);
+}
+
+function buddyBusy(delta) {
+  buddyState.busy += delta;
+  renderBuddy();
+}
+
+function buddyWatching(watching) {
+  buddyState.watching = watching;
+  renderBuddy();
+}
+
+function buddyHop() {
+  if (reducedMotion.matches) return;
+  $("#buddy .hop").animate([
+    { transform: "none" },
+    { transform: "scale(1.08, 0.92)", offset: 0.15 },
+    { transform: "translateY(-16px) scale(0.95, 1.05)", offset: 0.45 },
+    { transform: "scale(1.05, 0.95)", offset: 0.8 },
+    { transform: "none" },
+  ], { duration: 600, easing: "ease-out" });
+}
+
+$("#buddy-body").addEventListener("click", () => {
+  const now = Date.now();
+  buddyState.pokes = [...buddyState.pokes.filter((t) => now - t < 1500), now];
+  buddyHop();
+  if (buddyState.pokes.length >= 3) return buddy("happy", "Hihi, para! Cócegas não!", 2500);
+  if (buddyState.watching) return buddy(null, "Shh… só observando até a partida acabar.");
+  if (buddyState.busy) return buddy(null, "Calma, tô pensando…", 2500);
+  buddyState.tip = (buddyState.tip + 1 + Math.floor(Math.random() * (TIPS.length - 1))) % TIPS.length;
+  buddy("talking", TIPS[buddyState.tip], 6000);
+});
+$("#buddy-bubble").addEventListener("click", () => { $("#buddy-bubble").hidden = true; });
+
+// The eyes follow the pointer.
+let lookFrame = 0;
+document.addEventListener("pointermove", (event) => {
+  if (lookFrame) return;
+  lookFrame = requestAnimationFrame(() => {
+    lookFrame = 0;
+    const box = $("#buddy svg").getBoundingClientRect();
+    const dx = event.clientX - (box.left + box.width * 0.5);
+    const dy = event.clientY - (box.top + box.height * 0.28);
+    const distance = Math.hypot(dx, dy) || 1;
+    const reach = Math.min(3, distance / 40);
+    $("#buddy .pupils").setAttribute("transform", `translate(${(dx / distance) * reach} ${(dy / distance) * reach})`);
+  });
+});
+
+for (const type of ["pointermove", "pointerdown", "keydown"]) {
+  document.addEventListener(type, () => {
+    buddyState.lastActivity = Date.now();
+    if (!buddyState.sleeping) return;
+    buddyState.sleeping = false;
+    buddy(null, "Opa! Tirei um cochilo.", 2500);
+  }, { passive: true });
+}
+setInterval(() => {
+  if (buddyState.sleeping || Date.now() - buddyState.lastActivity < SLEEP_MS) return;
+  buddyState.sleeping = true;
+  renderBuddy();
+}, 5000);
+
 // ---------- navigation ----------
 
 function showTab(name) {
@@ -244,6 +348,7 @@ for (const button of document.querySelectorAll("nav button")) button.addEventLis
 function showLive(message, gameId) {
   const banner = $("#live-banner");
   banner.hidden = false;
+  buddyWatching(true);
   banner.textContent = message ?? "Você está jogando agora. O treinador volta quando a partida terminar.";
   if (gameId && state.follow?.gameId !== gameId) {
     const button = document.createElement("button");
@@ -258,7 +363,10 @@ async function checkStatus() {
   try {
     const status = await api(`/api/status?user=${encodeURIComponent(state.username)}`);
     if (status.playing) showLive("Você está jogando agora. Eu só acompanho até a partida acabar.", status.gameId);
-    else if (!state.follow) $("#live-banner").hidden = true;
+    else if (!state.follow) {
+      $("#live-banner").hidden = true;
+      buddyWatching(false);
+    }
   } catch { /* status is best effort in the UI; the server enforces it */ }
 }
 
@@ -279,6 +387,8 @@ function startFollow(gameId) {
     source.close();
     state.follow = null;
     $("#live-banner").hidden = true;
+    buddyWatching(false);
+    buddy("happy", "Acabou! Agora a gente pode revisar juntos.");
     $("#follow-status").textContent = `Partida encerrada (${result}). A revisão está liberada.`;
     const button = $("#follow-review");
     button.hidden = false;
@@ -303,9 +413,15 @@ $("#user-form").addEventListener("submit", async (event) => {
   try {
     const games = await api(`/api/games?user=${encodeURIComponent(state.username)}`);
     list.replaceChildren(...games.map(gameItem));
-    if (games.length === 0) list.innerHTML = "<li>Nenhuma partida terminada encontrada.</li>";
+    if (games.length === 0) {
+      list.innerHTML = "<li>Nenhuma partida terminada encontrada.</li>";
+      buddy("sad", "Não achei nenhuma partida terminada.");
+    } else {
+      buddy("happy", `Achei ${games.length} partida${games.length > 1 ? "s" : ""}. Escolhe uma pra gente revisar!`);
+    }
   } catch (error) {
     list.innerHTML = `<li class="bad">${escapeHtml(error.message)}</li>`;
+    if (!(error instanceof LiveGameError)) buddy("sad");
   }
 });
 
@@ -329,10 +445,15 @@ async function analyze(body) {
   $("#moments").replaceChildren();
   $("#opportunities-box").hidden = true;
   $("#messages").replaceChildren();
+  buddyBusy(1);
+  buddy(null, "Deixa eu passar a partida no Stockfish…");
   try {
     openReview(await api("/api/analyze", body));
   } catch (error) {
     $("#review-title").textContent = error instanceof LiveGameError ? "Revisão pausada" : error.message;
+    if (!(error instanceof LiveGameError)) buddy("sad", "Ih, não consegui analisar essa.");
+  } finally {
+    buddyBusy(-1);
   }
 }
 
@@ -366,7 +487,13 @@ function openReview(analysis) {
         ? '<span class="ok">aproveitou</span>'
         : `<span class="bad">deixou passar</span> · Melhor: ${escapeHtml(reply.bestMoveSan ?? "?")}`}</small>`);
   }));
-  if (analysis.moments.length === 0) list.innerHTML = "<li>Nenhum erro relevante seu nesta partida. Boa!</li>";
+  if (analysis.moments.length === 0) {
+    list.innerHTML = "<li>Nenhum erro relevante seu nesta partida. Boa!</li>";
+    buddy("happy", "Nenhum erro relevante seu nessa partida. Mandou bem!");
+  } else {
+    const n = analysis.moments.length;
+    buddy(null, `Separei ${n} momento${n > 1 ? "s" : ""} pra gente olhar juntos.`);
+  }
   if (analysis.moments.length > 0) selectMoment(analysis.moments[0], "error");
   else if (opportunities.length > 0) selectMoment(opportunities[0], "opportunity");
   else reviewBoard(analysis.plies.at(-1).fenAfter, analysis.plies.at(-1).evalAfter);
@@ -432,6 +559,7 @@ function selectMoment(index, kind) {
 async function askCoach() {
   const pending = addMessage("assistant", "Pensando…");
   $("#chat-form button").disabled = true;
+  buddyBusy(1);
   try {
     const { reply } = await api("/api/coach", {
       analysisId: state.analysis.id,
@@ -442,13 +570,16 @@ async function askCoach() {
     });
     pending.textContent = reply;
     state.chat.push({ role: "assistant", content: reply });
+    buddy("talking", undefined, 1600);
   } catch (error) {
     pending.textContent = error.message;
     pending.classList.add("error");
+    if (!(error instanceof LiveGameError)) buddy("sad");
     // Drop the unanswered question so the conversation stays well formed.
     if (state.chat.at(-1)?.role === "user") state.chat.pop();
   } finally {
     $("#chat-form button").disabled = false;
+    buddyBusy(-1);
   }
 }
 
@@ -540,6 +671,8 @@ async function onExerciseSquare(square, piece) {
   $("#exercise-status").innerHTML = result.correct
     ? `<span class="ok">Isso!</span> Volta em ${next}.`
     : `<span class="bad">Não era esse.</span> O melhor era ${escapeHtml(result.solutionSan ?? "?")}. Volta em ${next}.`;
+  if (result.correct) buddy("happy", "Isso! Achou o lance.");
+  else buddy("sad", "Quase! Olha a solução no tabuleiro.");
   showAnswer(exercise, result);
 }
 
@@ -658,3 +791,9 @@ function escapeHtml(text) {
 
 checkStatus();
 setInterval(checkStatus, 30_000);
+setTimeout(() => {
+  if (buddyState.watching) return;
+  buddy("happy", state.username
+    ? `Oi, ${state.username}! Bora revisar umas partidas?`
+    : "Oi! Eu sou o Buddy. Coloca seu usuário do Lichess ali em cima e bora revisar.", 6000);
+}, 600);
