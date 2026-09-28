@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Parceiro de xadrez: revis\u00e3o p\u00f3s-partida com Stockfish + Claude",
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
-    "start": "tsx --env-file-if-exists=.env src/server.ts",
+    "dev": "tsx watch --use-system-ca --env-file-if-exists=.env src/server.ts",
+    "start": "tsx --use-system-ca --env-file-if-exists=.env src/server.ts",
     "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
