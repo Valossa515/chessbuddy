@@ -111,6 +111,47 @@
     </section>
   </main>
 
+  <div id="buddy" data-mood="idle">
+    <div id="buddy-bubble" role="status" aria-live="polite" hidden></div>
+    <button id="buddy-body" type="button" aria-label="Buddy, o mascote do ChessBuddy. Clique para conversar.">
+      <svg viewBox="0 0 100 118" aria-hidden="true">
+        <ellipse class="shadow" cx="50" cy="113" rx="28" ry="4"/>
+        <g class="bob">
+          <g class="hop">
+            <rect class="shade" x="18" y="97" width="64" height="13" rx="6"/>
+            <path class="skin" d="M36 68 Q38 88 25 99 L75 99 Q62 88 64 68 Z"/>
+            <rect class="shade" x="29" y="60" width="42" height="10" rx="5"/>
+            <g class="tilt">
+              <circle class="skin" cx="50" cy="35" r="28"/>
+              <ellipse class="glint" cx="39" cy="18" rx="7" ry="4" transform="rotate(-25 39 18)"/>
+              <ellipse class="cheek" cx="33" cy="45" rx="4.5" ry="3"/>
+              <ellipse class="cheek" cx="67" cy="45" rx="4.5" ry="3"/>
+              <g class="eyes">
+                <ellipse class="eye" cx="40" cy="33" rx="7" ry="8"/>
+                <ellipse class="eye" cx="60" cy="33" rx="7" ry="8"/>
+                <g class="pupils">
+                  <circle class="ink" cx="41" cy="34" r="3.6"/>
+                  <circle class="ink" cx="61" cy="34" r="3.6"/>
+                  <circle class="eye" cx="42.3" cy="32.6" r="1.1"/>
+                  <circle class="eye" cx="62.3" cy="32.6" r="1.1"/>
+                </g>
+              </g>
+              <g class="happy-eyes line"><path d="M34 35 Q40 27 46 35"/><path d="M54 35 Q60 27 66 35"/></g>
+              <g class="sleep-eyes line"><path d="M34 33 Q40 38 46 33"/><path d="M54 33 Q60 38 66 33"/></g>
+              <g class="brows line"><path d="M33 23 L45 19"/><path d="M55 19 L67 23"/></g>
+              <path class="mouth mouth-smile line" d="M43 47 Q50 53 57 47"/>
+              <path class="mouth mouth-open ink" d="M42 46 Q50 58 58 46 Z"/>
+              <path class="mouth mouth-flat line" d="M45 49 L55 49"/>
+              <path class="mouth mouth-sad line" d="M43 51 Q50 45 57 51"/>
+            </g>
+          </g>
+        </g>
+        <g class="dots"><circle cx="80" cy="12" r="2.5"/><circle cx="87" cy="6" r="3"/><circle cx="95" cy="-1" r="3.5"/></g>
+        <g class="zz"><text x="76" y="14">z</text><text x="84" y="5">z</text><text x="93" y="-4">Z</text></g>
+      </svg>
+    </button>
+  </div>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>
