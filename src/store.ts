@@ -1,10 +1,12 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { Exercise, GameAnalysis } from "./types.ts";
+import type { BoardNote, Exercise, GameAnalysis } from "./types.ts";
 
 interface Data {
   analyses: Record<string, GameAnalysis>;
   exercises: Record<string, Exercise>;
+  /** Per analysis, the user's notes keyed by position (number of plies played). */
+  notes?: Record<string, Record<string, BoardNote>>;
 }
 
 /** Single-user JSON file store; enough for the MVP. */
@@ -49,6 +51,18 @@ export class Store {
 
   putExercises(exercises: Exercise[]): void {
     for (const exercise of exercises) this.data.exercises[exercise.id] = exercise;
+    this.save();
+  }
+
+  getNotes(analysisId: string): Record<string, BoardNote> {
+    return this.data.notes?.[analysisId] ?? {};
+  }
+
+  /** Stores the note for one position; `null` removes it. */
+  putNote(analysisId: string, position: number, note: BoardNote | null): void {
+    const notes = ((this.data.notes ??= {})[analysisId] ??= {});
+    if (note) notes[position] = note;
+    else delete notes[position];
     this.save();
   }
 }
