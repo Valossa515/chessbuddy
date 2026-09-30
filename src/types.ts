@@ -86,3 +86,25 @@ export interface Exercise {
   dueAt: string;
   attempts: { at: string; correct: boolean; uci: string }[];
 }
+
+export type NoteColor = "green" | "red" | "blue" | "yellow";
+
+/** An arrow between two squares, or a circle when `from` and `to` are the same square. */
+export interface NoteArrow {
+  from: string;
+  to: string;
+  color: NoteColor;
+}
+
+/** A freehand stroke in board units (0..8), seen from White: x grows toward the h-file, y toward rank 1. */
+export interface NoteStroke {
+  points: [number, number][];
+  color: NoteColor;
+}
+
+/** What the user wrote and drew on one position of an analysed game. */
+export interface BoardNote {
+  text: string;
+  shapes: (NoteArrow | NoteStroke)[];
+  updatedAt: string;
+}

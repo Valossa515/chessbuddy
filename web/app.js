@@ -15,6 +15,13 @@ const state = {
   replay: null,
   replayToken: null,
   follow: null,
+  // Lousa: the position on the review board (plies played), the user's notes by position, the drawing tool.
+  pos: null,
+  view: null,
+  notes: {},
+  tool: null,
+  color: "green",
+  hideEngine: load("hideEngine") === "1",
 };
 
 function load(key) {
@@ -26,9 +33,9 @@ function save(key, value) {
 
 class LiveGameError extends Error {}
 
-async function api(path, body) {
+async function api(path, body, method = "POST") {
   const response = await fetch(path, body === undefined ? {} : {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -148,44 +155,65 @@ function setEval(bar, cp, orientation) {
   bar.title = known ? `Avaliação do Stockfish: ${cp >= 0 ? "+" : "−"}${label.textContent}` : "";
 }
 
-// ---------- arrows ----------
+// ---------- arrows and drawing ----------
+
+const COLORS = { green: "#15781b", red: "#882020", blue: "#003088", yellow: "#e68f00" };
 
 /**
  * Lichess-style drawing on a board: right-drag draws an arrow, right-click
- * circles a square, drawing the same shape again removes it and a left click
- * clears everything. Shapes are kept by square, so they survive re-renders.
+ * circles a square, drawing the same shape again removes it. Shapes are kept
+ * by square (strokes in White-side board units), so they survive re-renders
+ * and flipped boards.
+ *
+ * `tool()` lets the left button draw too ("pen" for freehand, "arrow" for
+ * arrows); without a tool a left click clears the drawing when `clearOnClick`.
+ * `onChange` runs after each change the user makes.
  */
-function enableDrawing(board, svg) {
-  const shapes = [];
+function enableDrawing(board, svg, { tool = () => null, color = () => "green", onChange = () => {}, clearOnClick = true } = {}) {
+  let shapes = [];
   let start = null;
   let preview = null;
+  let stroke = null;
   const squareAt = (event) => {
     const square = document.elementFromPoint(event.clientX, event.clientY)?.closest(".square");
     return square && board.contains(square) ? square.dataset.square : undefined;
   };
+  const flipped = () => board.dataset.orientation === "b";
+  const pointAt = (event) => {
+    const box = board.getBoundingClientRect();
+    const clamp = (n) => Math.round(Math.max(0, Math.min(8, n)) * 100) / 100;
+    const x = clamp(((event.clientX - box.left) / box.width) * 8);
+    const y = clamp(((event.clientY - box.top) / box.height) * 8);
+    return flipped() ? [8 - x, 8 - y] : [x, y];
+  };
 
   function draw() {
-    const orientation = board.dataset.orientation ?? "w";
-    const center = (square) => {
-      const file = "abcdefgh".indexOf(square[0]);
-      const rank = Number(square[1]);
-      return orientation === "w" ? [file + 0.5, 8 - rank + 0.5] : [7 - file + 0.5, rank - 1 + 0.5];
-    };
+    const view = ([x, y]) => (flipped() ? [8 - x, 8 - y] : [x, y]);
+    const center = (square) => view(["abcdefgh".indexOf(square[0]) + 0.5, 8 - Number(square[1]) + 0.5]);
     const ns = "http://www.w3.org/2000/svg";
-    const nodes = [...shapes, ...(preview ? [preview] : [])].map(({ from, to }) => {
-      const [x1, y1] = center(from);
-      if (from === to) {
-        const circle = document.createElementNS(ns, "circle");
+    const paint = (el, hex) => { el.setAttribute("fill", hex); el.setAttribute("stroke", hex); return el; };
+    const nodes = [...shapes, ...(preview ? [preview] : []), ...(stroke ? [stroke] : [])].map((shape) => {
+      const hex = COLORS[shape.color] ?? COLORS.green;
+      if (shape.points) {
+        const line = document.createElementNS(ns, "polyline");
+        line.setAttribute("points", shape.points.map((p) => view(p).join(",")).join(" "));
+        Object.entries({ fill: "none", stroke: hex, "stroke-width": 0.1, "stroke-linecap": "round", "stroke-linejoin": "round" }).forEach(([k, v]) => line.setAttribute(k, v));
+        line.classList.add("shape");
+        return line;
+      }
+      const [x1, y1] = center(shape.from);
+      if (shape.from === shape.to) {
+        const circle = paint(document.createElementNS(ns, "circle"), hex);
         Object.entries({ cx: x1, cy: y1, r: 0.45, fill: "none", "stroke-width": 0.07 }).forEach(([k, v]) => circle.setAttribute(k, v));
         circle.classList.add("shape");
         return circle;
       }
-      const [x2, y2] = center(to);
+      const [x2, y2] = center(shape.to);
       const length = Math.hypot(x2 - x1, y2 - y1);
       const [ux, uy] = [(x2 - x1) / length, (y2 - y1) / length];
       const head = 0.45;
       const [bx, by] = [x2 - ux * head, y2 - uy * head];
-      const g = document.createElementNS(ns, "g");
+      const g = paint(document.createElementNS(ns, "g"), hex);
       g.classList.add("shape");
       const line = document.createElementNS(ns, "line");
       Object.entries({ x1, y1, x2: bx, y2: by, "stroke-width": 0.17 }).forEach(([k, v]) => line.setAttribute(k, v));
@@ -200,30 +228,59 @@ function enableDrawing(board, svg) {
 
   board.addEventListener("contextmenu", (event) => event.preventDefault());
   board.addEventListener("pointerdown", (event) => {
-    if (event.button === 2) start = squareAt(event) ?? null;
-    else if (event.button === 0 && shapes.length) { shapes.length = 0; draw(); }
+    const current = event.button === 0 ? tool() : event.button === 2 ? "arrow" : null;
+    if (current === "arrow") start = squareAt(event) ?? null;
+    else if (current === "pen") {
+      event.preventDefault();
+      stroke = { points: [pointAt(event)], color: color() };
+      draw();
+    } else if (event.button === 0 && clearOnClick && shapes.length) {
+      shapes = [];
+      draw();
+      onChange();
+    }
   });
   document.addEventListener("pointermove", (event) => {
+    if (stroke) {
+      const point = pointAt(event);
+      const last = stroke.points.at(-1);
+      if (Math.hypot(point[0] - last[0], point[1] - last[1]) < 0.04 || stroke.points.length >= 1000) return;
+      stroke.points.push(point);
+      draw();
+      return;
+    }
     if (!start) return;
     const to = squareAt(event);
-    preview = to && to !== start ? { from: start, to } : null;
+    preview = to && to !== start ? { from: start, to, color: color() } : null;
     draw();
   });
   document.addEventListener("pointerup", (event) => {
-    if (event.button !== 2 || !start) return;
+    if (stroke) {
+      // A tap without movement leaves a dot.
+      shapes.push(stroke.points.length > 1 ? stroke : { ...stroke, points: [stroke.points[0], stroke.points[0]] });
+      stroke = null;
+      draw();
+      onChange();
+      return;
+    }
+    if (!start) return;
     const to = squareAt(event);
     if (to) {
       const existing = shapes.findIndex((shape) => shape.from === start && shape.to === to);
       if (existing >= 0) shapes.splice(existing, 1);
-      else shapes.push({ from: start, to });
+      else shapes.push({ from: start, to, color: color() });
+      onChange();
     }
     start = null;
     preview = null;
     draw();
   });
   return {
-    clear() { shapes.length = 0; start = null; preview = null; draw(); },
+    clear() { shapes = []; start = null; preview = null; stroke = null; draw(); },
     redraw: draw,
+    get: () => shapes,
+    set(list) { shapes = [...list]; start = null; preview = null; stroke = null; draw(); },
+    undo() { if (shapes.pop()) { draw(); onChange(); } },
   };
 }
 
@@ -267,6 +324,7 @@ function buddy(mood, text, ms = 4500) {
   bubble.hidden = true;
   void bubble.offsetWidth;
   bubble.hidden = false;
+  placeBubble();
   clearTimeout(buddyState.bubbleTimer);
   buddyState.bubbleTimer = setTimeout(() => { bubble.hidden = true; }, ms);
 }
@@ -303,6 +361,100 @@ $("#buddy-body").addEventListener("click", () => {
   buddy("talking", TIPS[buddyState.tip], 6000);
 });
 $("#buddy-bubble").addEventListener("click", () => { $("#buddy-bubble").hidden = true; });
+
+// The buddy and its bubble stay off the page's controls.
+const CONTROLS = "header :is(input, button), nav button, main :is(button, input, textarea, select), .banner button";
+// How far the buddy sinks below the screen edge: ducked leaves its eyes out, hiding leaves nothing.
+const SINK = { none: 0, ducked: 0.7, hiding: 1.25 };
+
+function visibleRects(selector) {
+  return [...document.querySelectorAll(selector)].filter((el) => el.offsetParent !== null).map((el) => el.getBoundingClientRect());
+}
+
+function overlapping(box, rects) {
+  return rects.filter((r) => r.left < box.right && r.right > box.left && r.top < box.bottom && r.bottom > box.top);
+}
+
+/**
+ * The visible part of the buddy's body when sunk by `sink` ("none", "ducked" or "hiding"),
+ * computed rather than measured so a running transition doesn't skew it.
+ */
+function buddyBodyRect(sink = $("#buddy").dataset.sink ?? "none") {
+  const body = $("#buddy-body");
+  const right = document.documentElement.clientWidth - 16;
+  const bottom = innerHeight - 12 + body.offsetHeight * SINK[sink];
+  return { left: right - body.offsetWidth, right, top: bottom - body.offsetHeight, bottom: Math.min(bottom, innerHeight) };
+}
+
+/** When the buddy would stand on a control it ducks below the screen edge, or hides when even its head is in the way. */
+function duckBuddy() {
+  const controls = visibleRects(CONTROLS);
+  $("#buddy").dataset.sink = ["none", "ducked"].find((sink) => overlapping(buddyBodyRect(sink), controls).length === 0) ?? "hiding";
+}
+
+/**
+ * The bubble never sits on a control. It tries its usual place above the
+ * buddy, then beside it at a few heights, then risen above whatever it
+ * covers; when no place is free it may cover a list item, never a control.
+ */
+function placeBubble() {
+  const bubble = $("#buddy-bubble");
+  bubble.style.translate = "";
+  bubble.classList.remove("lifted", "beside");
+  if (bubble.hidden) return;
+  // A hidden buddy doesn't talk: a bubble with nobody next to it would just be in the way.
+  if ($("#buddy").dataset.sink === "hiding") {
+    bubble.hidden = true;
+    return;
+  }
+  const controls = visibleRects(CONTROLS);
+  const everything = [...controls, ...visibleRects("main .list li")];
+  // Measured from the buddy rather than the bubble, which may still be popping in. The bubble's
+  // own place is above the buddy's layout box, which ducking doesn't move; "beside" follows the visible body.
+  const layout = buddyBodyRect("none");
+  const body = buddyBodyRect();
+  const right = layout.right - 16;
+  const bottom = layout.top - 6;
+  const home = { left: right - bubble.offsetWidth, right, top: bottom - bubble.offsetHeight, bottom };
+  const at = ([dx, dy]) => ({ left: home.left + dx, right: home.right + dx, top: home.top + dy, bottom: home.bottom + dy });
+  const beside = (rise) => [body.left - 10 - home.right, body.bottom - 12 - home.bottom - rise];
+  const lifted = (list) => {
+    let dy = 0;
+    for (let i = 0; i < 8; i++) {
+      const covered = overlapping(at([0, dy]), list);
+      if (covered.length === 0) return [0, dy];
+      dy -= at([0, dy]).bottom - Math.min(...covered.map((r) => r.top)) + 8;
+    }
+    return null;
+  };
+  const candidates = [everything, controls].flatMap((list) => [
+    { offset: [0, 0], list },
+    ...[0, 40, 80, 120, 160].map((rise) => ({ offset: beside(rise), list, className: "beside" })),
+    { offset: lifted(list), list, className: "lifted" },
+  ]);
+  for (const { offset, list, className } of candidates) {
+    if (!offset) continue;
+    const box = at(offset);
+    if (box.left < 8 || box.top < 8 || box.bottom > innerHeight - 4 || overlapping(box, list).length > 0) continue;
+    bubble.style.translate = `${offset[0]}px ${offset[1]}px`;
+    if (className) bubble.classList.add(className);
+    return;
+  }
+}
+
+let placeFrame = 0;
+function placeBuddy() {
+  if (placeFrame) return;
+  placeFrame = requestAnimationFrame(() => {
+    placeFrame = 0;
+    duckBuddy();
+    placeBubble();
+  });
+}
+addEventListener("scroll", placeBuddy, { passive: true });
+addEventListener("resize", placeBuddy, { passive: true });
+// Content appearing or moving (a new tab, a chat message) can put a control under the buddy.
+new ResizeObserver(placeBuddy).observe($("main"));
 
 // The eyes follow the pointer.
 let lookFrame = 0;
@@ -465,6 +617,11 @@ function moveLabel(ply) {
 
 function openReview(analysis) {
   state.analysis = analysis;
+  state.plyIndex = null;
+  state.pos = null;
+  state.notes = {};
+  renderNotes();
+  loadNotes(analysis.id);
   const { game } = analysis;
   $("#review-title").textContent = `${game.white} x ${game.black} · ${game.result}`;
   const list = $("#moments");
@@ -472,7 +629,7 @@ function openReview(analysis) {
     const ply = analysis.plies[index];
     return momentItem(index, "error", `<strong>${escapeHtml(moveLabel(ply))}</strong>
       <span class="tag ${ply.classification}">${LABELS[ply.classification]}</span>
-      <small>Melhor: ${escapeHtml(ply.bestMoveSan ?? "?")}</small>`);
+      <small class="engine">Melhor: ${escapeHtml(ply.bestMoveSan ?? "?")}</small>`);
   }));
   // The opponent's errors, each with whether the user's reply punished it.
   const opportunities = analysis.opportunities ?? [];
@@ -485,7 +642,7 @@ function openReview(analysis) {
       <span class="tag ${ply.classification}">${LABELS[ply.classification]}</span>
       <small>Você respondeu ${escapeHtml(moveLabel(reply))}: ${took
         ? '<span class="ok">aproveitou</span>'
-        : `<span class="bad">deixou passar</span> · Melhor: ${escapeHtml(reply.bestMoveSan ?? "?")}`}</small>`);
+        : `<span class="bad">deixou passar</span><span class="engine"> · Melhor: ${escapeHtml(reply.bestMoveSan ?? "?")}</span>`}</small>`);
   }));
   if (analysis.moments.length === 0) {
     list.innerHTML = "<li>Nenhum erro relevante seu nesta partida. Boa!</li>";
@@ -496,14 +653,7 @@ function openReview(analysis) {
   }
   if (analysis.moments.length > 0) selectMoment(analysis.moments[0], "error");
   else if (opportunities.length > 0) selectMoment(opportunities[0], "opportunity");
-  else reviewBoard(analysis.plies.at(-1).fenAfter, analysis.plies.at(-1).evalAfter);
-}
-
-/** Draws the review board from the user's side, with coordinates, and sets the bar to `cp`. */
-function reviewBoard(fen, cp, options = {}) {
-  const orientation = state.analysis.game.playerColor ?? "w";
-  renderBoard($("#review-board"), fen, { orientation, coords: true, ...options });
-  setEval($("#review-eval"), cp, orientation);
+  else showPosition(analysis.plies.length);
 }
 
 function momentItem(index, kind, html) {
@@ -515,32 +665,225 @@ function momentItem(index, kind, html) {
   return li;
 }
 
+/**
+ * Shows position `pos` (the board after `pos` plies) from the user's side,
+ * with its evaluation and the user's drawings and notes for it. By default
+ * the last move is marked, and a step forward slides the piece. `view` names
+ * the moment view ("before"/"after") the position belongs to, if any.
+ */
+function showPosition(pos, { marks, animate, caption, view = null } = {}) {
+  const plies = state.analysis.plies;
+  pos = Math.max(0, Math.min(plies.length, pos));
+  const last = plies[pos - 1];
+  const orientation = state.analysis.game.playerColor ?? "w";
+  if (animate === undefined) animate = last && pos === state.pos + 1 ? slidesOf(last.fenBefore, last.uci) : [];
+  state.pos = pos;
+  state.view = view;
+  renderBoard($("#review-board"), pos === 0 ? plies[0].fenBefore : last.fenAfter, { orientation, coords: true, marks: marks ?? squaresOf(last?.uci), animate });
+  setEval($("#review-eval"), pos === 0 ? plies[0].evalBefore : last.evalAfter, orientation);
+  $("#review-caption").textContent = caption ?? (last ? `Depois de ${moveLabel(last)}.` : "Posição inicial.");
+  for (const button of document.querySelectorAll("#review-nav [data-nav]")) {
+    button.disabled = ["start", "prev"].includes(button.dataset.nav) ? pos === 0 : pos === plies.length;
+  }
+  const note = state.notes[pos];
+  reviewDrawing.set(note?.shapes ?? []);
+  $("#lousa-text").value = note?.text ?? "";
+  renderNotes();
+}
+
 function showPly(which) {
+  const plies = state.analysis.plies;
+  const hide = state.hideEngine;
   if (state.kind === "opportunity") {
     // Shown from the user's side: the position the opponent's error left, and the user's reply.
-    const error = state.analysis.plies[state.plyIndex];
-    const reply = state.analysis.plies[state.plyIndex + 1];
+    const error = plies[state.plyIndex];
+    const reply = plies[state.plyIndex + 1];
     if (which === "before") {
-      reviewBoard(reply.fenBefore, reply.evalBefore, { marks: squaresOf(error.uci) });
-      $("#review-caption").textContent = `O adversário jogou ${moveLabel(error)}. Como punir? O Stockfish jogaria ${reply.bestMoveSan ?? "?"}.`;
+      showPosition(state.plyIndex + 1, {
+        view: which,
+        animate: [],
+        caption: `O adversário jogou ${moveLabel(error)}. Como punir?${hide ? "" : ` O Stockfish jogaria ${reply.bestMoveSan ?? "?"}.`}`,
+      });
     } else {
-      reviewBoard(reply.fenAfter, reply.evalAfter, { marks: squaresOf(reply.uci), animate: slidesOf(reply.fenBefore, reply.uci) });
-      $("#review-caption").textContent = `Você respondeu ${moveLabel(reply)}.`;
+      showPosition(state.plyIndex + 2, { view: which, animate: slidesOf(reply.fenBefore, reply.uci), caption: `Você respondeu ${moveLabel(reply)}.` });
     }
     return;
   }
-  const ply = state.analysis.plies[state.plyIndex];
+  const ply = plies[state.plyIndex];
   if (which === "before") {
-    reviewBoard(ply.fenBefore, ply.evalBefore, { marks: squaresOf(ply.bestMoveUci) });
-    $("#review-caption").textContent = `Posição antes de ${ply.san}. Em destaque, o lance do Stockfish: ${ply.bestMoveSan ?? "?"}.`;
+    showPosition(state.plyIndex, {
+      view: which,
+      animate: [],
+      marks: hide ? undefined : squaresOf(ply.bestMoveUci),
+      caption: hide
+        ? `Posição antes de ${moveLabel(ply)}. O que você jogaria aqui?`
+        : `Posição antes de ${ply.san}. Em destaque, o lance do Stockfish: ${ply.bestMoveSan ?? "?"}.`,
+    });
   } else {
-    reviewBoard(ply.fenAfter, ply.evalAfter, { marks: squaresOf(ply.uci), animate: slidesOf(ply.fenBefore, ply.uci) });
-    $("#review-caption").textContent = `Depois de ${ply.san}. Resposta mais forte: ${ply.refutationSan.slice(0, 3).join(" ") || "—"}.`;
+    showPosition(state.plyIndex + 1, {
+      view: which,
+      animate: slidesOf(ply.fenBefore, ply.uci),
+      caption: hide
+        ? `Depois de ${moveLabel(ply)}.`
+        : `Depois de ${ply.san}. Resposta mais forte: ${ply.refutationSan.slice(0, 3).join(" ") || "—"}.`,
+    });
   }
 }
 
 $("#show-before").addEventListener("click", () => showPly("before"));
 $("#show-after").addEventListener("click", () => showPly("after"));
+
+function stepReview(nav) {
+  if (!state.analysis || state.pos === null) return;
+  const target = { start: 0, prev: state.pos - 1, next: state.pos + 1, end: state.analysis.plies.length }[nav];
+  if (target >= 0 && target <= state.analysis.plies.length && target !== state.pos) showPosition(target);
+}
+
+for (const button of document.querySelectorAll("#review-nav [data-nav]")) {
+  button.addEventListener("click", () => stepReview(button.dataset.nav));
+}
+document.addEventListener("keydown", (event) => {
+  if ($("#review").hidden || event.target.closest("input, textarea, select")) return;
+  const nav = { ArrowLeft: "prev", ArrowRight: "next", Home: "start", End: "end" }[event.key];
+  if (!nav) return;
+  event.preventDefault();
+  stepReview(nav);
+});
+
+// ---------- lousa ----------
+
+const reviewDrawing = enableDrawing($("#review-board"), $("#review-arrows"), {
+  tool: () => state.tool,
+  color: () => state.color,
+  onChange: () => editNote({ shapes: [...reviewDrawing.get()] }),
+  clearOnClick: false,
+});
+
+async function loadNotes(id) {
+  try {
+    const notes = await api(`/api/analysis/${encodeURIComponent(id)}/notes`);
+    if (state.analysis?.id !== id) return;
+    // Anything written while the notes were loading wins over the saved version.
+    const edited = state.notes[state.pos];
+    state.notes = { ...notes, ...state.notes };
+    if (state.pos !== null && !edited) {
+      const note = state.notes[state.pos];
+      reviewDrawing.set(note?.shapes ?? []);
+      $("#lousa-text").value = note?.text ?? "";
+    }
+    renderNotes();
+  } catch (error) {
+    $("#lousa-status").textContent = `Não consegui carregar suas anotações: ${error.message}`;
+  }
+}
+
+/** Updates the note of the position on the board and saves it shortly after. */
+function editNote(change) {
+  const pos = state.pos;
+  if (pos === null) return;
+  const note = { text: state.notes[pos]?.text ?? "", shapes: state.notes[pos]?.shapes ?? [], ...change };
+  if (!note.text.trim() && note.shapes.length === 0) delete state.notes[pos];
+  else state.notes[pos] = note;
+  scheduleSave(state.analysis.id, state.notes, pos);
+  renderNotes();
+}
+
+const SAVE_MS = 700;
+const pendingSaves = new Map();
+
+/** Saves `notes[pos]` after a pause in the editing; an empty note deletes it on the server. */
+function scheduleSave(id, notes, pos) {
+  const key = `${id}:${pos}`;
+  clearTimeout(pendingSaves.get(key)?.timer);
+  const run = (keepalive = false) => {
+    pendingSaves.delete(key);
+    const { text = "", shapes = [] } = notes[pos] ?? {};
+    return fetch(`/api/analysis/${encodeURIComponent(id)}/notes/${pos}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, shapes }),
+      keepalive,
+    });
+  };
+  const timer = setTimeout(async () => {
+    try {
+      const response = await run();
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? `Erro ${response.status}`);
+      if (pendingSaves.size === 0) $("#lousa-status").textContent = "Salvo";
+    } catch (error) {
+      $("#lousa-status").textContent = `Não salvou: ${error.message}`;
+    }
+  }, SAVE_MS);
+  pendingSaves.set(key, { run, timer });
+  $("#lousa-status").textContent = "Salvando…";
+}
+
+// Closing the page right after an edit still saves it.
+addEventListener("pagehide", () => {
+  for (const { run, timer } of [...pendingSaves.values()]) {
+    clearTimeout(timer);
+    run(true);
+  }
+});
+
+/** The positions the user annotated, in game order, each one a link back to it. */
+function renderNotes() {
+  const plies = state.analysis?.plies ?? [];
+  const positions = Object.keys(state.notes).map(Number).sort((a, b) => a - b);
+  $("#notes-box").hidden = positions.length === 0;
+  $("#notes").replaceChildren(...positions.map((pos) => {
+    const { text, shapes } = state.notes[pos];
+    const li = document.createElement("li");
+    li.classList.toggle("selected", pos === state.pos);
+    const title = document.createElement("strong");
+    title.textContent = pos === 0 ? "Posição inicial" : `Depois de ${moveLabel(plies[pos - 1])}`;
+    const summary = document.createElement("small");
+    summary.textContent = text.trim().split("\n")[0] || `${shapes.length} desenho${shapes.length > 1 ? "s" : ""}`;
+    li.append(title, summary);
+    li.addEventListener("click", () => showPosition(pos));
+    return li;
+  }));
+}
+
+$("#lousa-text").addEventListener("input", (event) => editNote({ text: event.target.value }));
+
+for (const button of document.querySelectorAll("#lousa [data-tool]")) {
+  button.addEventListener("click", () => {
+    state.tool = state.tool === button.dataset.tool ? null : button.dataset.tool;
+    for (const other of document.querySelectorAll("#lousa [data-tool]")) other.setAttribute("aria-pressed", String(other.dataset.tool === state.tool));
+    $("#review-board").classList.toggle("drawing", state.tool !== null);
+  });
+}
+for (const button of document.querySelectorAll("#lousa [data-color]")) {
+  button.addEventListener("click", () => {
+    state.color = button.dataset.color;
+    for (const other of document.querySelectorAll("#lousa [data-color]")) other.setAttribute("aria-pressed", String(other === button));
+  });
+}
+$("#lousa-undo").addEventListener("click", () => reviewDrawing.undo());
+$("#lousa-clear").addEventListener("click", () => {
+  if (reviewDrawing.get().length === 0) return;
+  reviewDrawing.set([]);
+  editNote({ shapes: [] });
+});
+
+function applyHideEngine() {
+  $("#hide-engine").checked = state.hideEngine;
+  $("#review").classList.toggle("no-engine", state.hideEngine);
+}
+applyHideEngine();
+$("#hide-engine").addEventListener("change", (event) => {
+  state.hideEngine = event.target.checked;
+  save("hideEngine", state.hideEngine ? "1" : "0");
+  applyHideEngine();
+  if (state.analysis && state.pos !== null) {
+    if (state.view) showPly(state.view);
+    else showPosition(state.pos, { animate: [] });
+  }
+  buddy(null, state.hideEngine
+    ? "Beleza, Stockfish escondido. Agora é você e suas ideias!"
+    : "Stockfish de volta. Compara com o que você anotou!");
+});
 
 function selectMoment(index, kind) {
   state.plyIndex = index;
@@ -553,8 +896,15 @@ function selectMoment(index, kind) {
   $("#show-after").textContent = kind === "opportunity" ? "Sua resposta" : "Depois do lance";
   showPly("before");
   $("#messages").replaceChildren();
-  askCoach();
+  // Without the engine the coach only comes when asked.
+  $("#ask-coach").hidden = !state.hideEngine;
+  if (!state.hideEngine) askCoach();
 }
+
+$("#ask-coach").addEventListener("click", () => {
+  $("#ask-coach").hidden = true;
+  askCoach();
+});
 
 async function askCoach() {
   const pending = addMessage("assistant", "Pensando…");
@@ -575,6 +925,7 @@ async function askCoach() {
     pending.textContent = error.message;
     pending.classList.add("error");
     if (!(error instanceof LiveGameError)) buddy("sad");
+    if (state.chat.length === 0) $("#ask-coach").hidden = false;
     // Drop the unanswered question so the conversation stays well formed.
     if (state.chat.at(-1)?.role === "user") state.chat.pop();
   } finally {

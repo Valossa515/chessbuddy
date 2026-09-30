@@ -163,11 +163,35 @@ main { padding-top: 16px; padding-bottom: 32px; }
 .eval-label.on-black { color: #f1efe9; }
 
 .arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
-.arrows .shape { fill: #15781b; stroke: #15781b; opacity: 0.8; }
+.arrows .shape { opacity: 0.8; }
 .piece.w { color: #fff; text-shadow: 0 0 2px #000, 0 0 1px #000; }
 .piece.b { color: #111; }
 
-.board-controls { display: flex; gap: 8px; margin-top: 8px; }
+.board-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.board-controls .spacer { flex: 1; }
+
+/* ---------- Lousa: the user's own drawings and notes ---------- */
+
+#lousa { display: grid; gap: 8px; margin-top: 4px; }
+.lousa-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lousa-tools [aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.swatches { display: flex; gap: 4px; }
+.swatches button { width: 26px; height: 26px; padding: 0; border-radius: 50%; }
+.swatches [data-color="green"] { background: #15781b; }
+.swatches [data-color="red"] { background: #882020; }
+.swatches [data-color="blue"] { background: #003088; }
+.swatches [data-color="yellow"] { background: #e68f00; }
+.swatches [aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+#lousa-text { font-family: inherit; font-size: 0.95rem; resize: vertical; }
+.lousa-footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.lousa-footer label { display: flex; gap: 6px; align-items: center; color: var(--muted); }
+.lousa-footer input { flex: none; }
+/* While a tool is on, dragging on the board draws instead of scrolling the page. */
+#review-board.drawing { touch-action: none; cursor: crosshair; }
+#review.no-engine #review-eval { visibility: hidden; }
+#review.no-engine .engine { display: none; }
+#notes li { cursor: pointer; }
+#notes small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .line { margin: 8px 0 0; }
 .line .label { color: var(--muted); margin-right: 4px; }
@@ -201,7 +225,11 @@ main { padding-top: 16px; padding-bottom: 32px; }
 }
 #buddy > * { pointer-events: auto; }
 
-#buddy-body { width: 84px; padding: 0; border: none; border-radius: 50%; background: transparent; }
+#buddy-body { width: 84px; padding: 0; border: none; border-radius: 50%; background: transparent; transition: translate 0.3s ease; }
+/* Sunk under the screen edge while it would stand on a control; pointing at a ducked buddy brings it back up. */
+#buddy[data-sink="ducked"] #buddy-body { translate: 0 70%; }
+#buddy[data-sink="hiding"] #buddy-body { translate: 0 125%; }
+#buddy[data-sink="ducked"] #buddy-body:is(:hover, :focus-visible) { translate: 0 0; }
 #buddy-body:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 #buddy svg { display: block; width: 100%; overflow: visible; }
 
@@ -217,7 +245,11 @@ main { padding-top: 16px; padding-bottom: 32px; }
   font-size: 0.9rem;
   cursor: pointer;
   animation: buddy-pop 0.18s ease-out;
+  transition: translate 0.15s ease-out;
 }
+#buddy-bubble.lifted::after { display: none; }
+/* Beside the buddy the tail points right, at him. */
+#buddy-bubble.beside::after { right: -7px; bottom: 16px; transform: rotate(-45deg); }
 #buddy-bubble::after {
   content: "";
   position: absolute;

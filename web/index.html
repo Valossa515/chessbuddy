@@ -70,13 +70,40 @@
         <div>
           <div class="board-frame">
             <div id="review-eval" class="eval-bar"><div class="eval-white"></div><span class="eval-label"></span></div>
-            <div class="board-wrap"><div id="review-board" class="board"></div></div>
+            <div class="board-wrap">
+              <div id="review-board" class="board"></div>
+              <svg id="review-arrows" class="arrows" viewBox="0 0 8 8" aria-hidden="true"></svg>
+            </div>
           </div>
-          <div class="board-controls">
+          <div class="board-controls" id="review-nav">
+            <button data-nav="start" aria-label="Posição inicial">⏮</button>
+            <button data-nav="prev" aria-label="Lance anterior">◀</button>
+            <button data-nav="next" aria-label="Próximo lance">▶</button>
+            <button data-nav="end" aria-label="Posição final">⏭</button>
+            <span class="spacer"></span>
             <button id="show-before">Antes do lance</button>
             <button id="show-after">Depois do lance</button>
           </div>
           <p id="review-caption" class="status"></p>
+          <div id="lousa">
+            <div class="lousa-tools" role="toolbar" aria-label="Lousa">
+              <button data-tool="pen" aria-pressed="false">✏️ Caneta</button>
+              <button data-tool="arrow" aria-pressed="false">➜ Seta</button>
+              <span class="swatches">
+                <button data-color="green" aria-label="Verde" aria-pressed="true"></button>
+                <button data-color="red" aria-label="Vermelho" aria-pressed="false"></button>
+                <button data-color="blue" aria-label="Azul" aria-pressed="false"></button>
+                <button data-color="yellow" aria-label="Amarelo" aria-pressed="false"></button>
+              </span>
+              <button id="lousa-undo" aria-label="Desfazer o último desenho">↶</button>
+              <button id="lousa-clear">Limpar desenhos</button>
+            </div>
+            <textarea id="lousa-text" rows="3" placeholder="Suas ideias nesta posição: planos, ameaças, o que você pensou na hora…"></textarea>
+            <div class="lousa-footer">
+              <label><input type="checkbox" id="hide-engine"> Esconder o Stockfish</label>
+              <small id="lousa-status" class="status"></small>
+            </div>
+          </div>
         </div>
         <div class="side">
           <h2 id="review-title"></h2>
@@ -85,7 +112,12 @@
             <h3>Chances que o adversário deu</h3>
             <ol id="opportunities" class="list"></ol>
           </div>
+          <div id="notes-box" hidden>
+            <h3>Suas anotações</h3>
+            <ol id="notes" class="list"></ol>
+          </div>
           <div id="chat">
+            <button id="ask-coach" type="button" hidden>Pedir a opinião do treinador</button>
             <div id="messages"></div>
             <form id="chat-form">
               <input id="chat-input" placeholder="Pergunte ou proponha um lance (ex.: e se Nd7?)" autocomplete="off">

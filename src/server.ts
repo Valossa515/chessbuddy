@@ -9,6 +9,7 @@ import { Coach, parseHistory } from "./coach.ts";
 import { Engine, scoreToCp } from "./engine.ts";
 import { answerExercise, createExercises, isDue, playSan, playUci } from "./exercises.ts";
 import { assertGameFinished, Guard, GuardrailError, pgnResult } from "./guardrail.ts";
+import { NoteError, parseNote } from "./notes.ts";
 import { fetchGame, fetchPlayingStatus, fetchRecentGames, streamGame } from "./lichess.ts";
 import { Store } from "./store.ts";
 import type { Color, GameAnalysis, GameRecord } from "./types.ts";
@@ -152,6 +153,26 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): P
     const analysis = store.getAnalysis(analysisMatch[1]);
     if (!analysis) throw new HttpError(404, "Análise não encontrada");
     return send(res, 200, withOpportunities(analysis));
+  }
+
+  const notesMatch = path.match(/^\/api\/analysis\/([\w-]+)\/notes(?:\/(\d+))?$/);
+  if (notesMatch) {
+    const analysis = store.getAnalysis(notesMatch[1]);
+    if (!analysis) throw new HttpError(404, "Análise não encontrada");
+    if (req.method === "GET" && notesMatch[2] === undefined) return send(res, 200, store.getNotes(analysis.id));
+    // Position n is the board after n plies: 0 is the start, plies.length the final position.
+    const position = Number(notesMatch[2]);
+    if (req.method === "PUT" && notesMatch[2] !== undefined && position <= analysis.plies.length) {
+      let note;
+      try {
+        note = parseNote(await readJson(req));
+      } catch (error) {
+        if (error instanceof NoteError) throw new HttpError(400, error.message);
+        throw error;
+      }
+      store.putNote(analysis.id, position, note);
+      return send(res, 200, { note });
+    }
   }
 
   if (req.method === "POST" && path === "/api/coach") {
