@@ -225,11 +225,30 @@ main { padding-top: 16px; padding-bottom: 32px; }
 }
 #buddy > * { pointer-events: auto; }
 
-#buddy-body { width: 84px; padding: 0; border: none; border-radius: 50%; background: transparent; transition: translate 0.3s ease; }
+.buddy-stage { position: relative; transition: translate 0.3s ease; }
+#buddy-body { display: block; width: 84px; padding: 0; border: none; border-radius: 50%; background: transparent; }
 /* Sunk under the screen edge while it would stand on a control; pointing at a ducked buddy brings it back up. */
-#buddy[data-sink="ducked"] #buddy-body { translate: 0 70%; }
-#buddy[data-sink="hiding"] #buddy-body { translate: 0 125%; }
-#buddy[data-sink="ducked"] #buddy-body:is(:hover, :focus-visible) { translate: 0 0; }
+#buddy[data-sink="ducked"] .buddy-stage { translate: 0 70%; }
+#buddy[data-sink="hiding"] .buddy-stage { translate: 0 125%; }
+#buddy[data-sink="ducked"] .buddy-stage:is(:hover, :focus-within) { translate: 0 0; }
+
+/* Picks the other companion. Shows up when pointing at the buddy; always there on touch screens. */
+#buddy-swap {
+  position: absolute;
+  top: -2px;
+  left: -10px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.buddy-stage:is(:hover, :focus-within) #buddy-swap { opacity: 1; }
+@media (hover: none) { #buddy-swap { opacity: 0.85; } }
 #buddy-body:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 #buddy svg { display: block; width: 100%; overflow: visible; }
 
@@ -264,6 +283,13 @@ main { padding-top: 16px; padding-bottom: 32px; }
 }
 
 #buddy .skin { fill: var(--buddy); }
+#buddy .fur { fill: #a8784f; }
+#buddy .fur-dark { fill: #7d5534; }
+#buddy .fur-light { fill: #c49a6c; }
+#buddy .snout { fill: #b88a5e; }
+#buddy .line.thin { stroke-width: 1.8; }
+#buddy .fruit { fill: #f29a2e; }
+#buddy .leaf { fill: #4f9a3a; }
 #buddy .shade { fill: var(--buddy-shade); }
 #buddy .glint { fill: #fff; opacity: 0.3; }
 #buddy .cheek { fill: #ff8a8a; opacity: 0.45; }
@@ -296,6 +322,9 @@ main { padding-top: 16px; padding-bottom: 32px; }
 
 #buddy[data-mood="thinking"] .pupils { transform: translate(2.5px, -3.5px); }
 #buddy[data-mood="watching"] .pupils { transform: translate(-2px, 3px); }
+/* The capybara's eyes are smaller: its pupils travel less. */
+#buddy[data-character="capy"][data-mood="thinking"] .pupils { transform: translate(1.6px, -2px); }
+#buddy[data-character="capy"][data-mood="watching"] .pupils { transform: translate(-1.4px, 2px); }
 #buddy[data-mood="thinking"] .tilt { transform: rotate(5deg); }
 #buddy[data-mood="sad"] .tilt { transform: rotate(-6deg); }
 #buddy[data-mood="sleeping"] .bob { animation-duration: 5s; }
