@@ -145,8 +145,15 @@
 
   <div id="buddy" data-mood="idle">
     <div id="buddy-bubble" role="status" aria-live="polite" hidden></div>
-    <button id="buddy-body" type="button" aria-label="Buddy, o mascote do ChessBuddy. Clique para conversar.">
-      <svg viewBox="0 0 100 118" aria-hidden="true">
+    <div class="buddy-stage">
+      <button id="buddy-body" type="button"></button>
+      <button id="buddy-swap" type="button" aria-label="Trocar de companheiro">⇄</button>
+    </div>
+  </div>
+
+  <!-- The companions the user can pick; the chosen one is copied into #buddy-body. -->
+  <template id="buddy-pawn">
+      <svg viewBox="0 0 100 118" aria-hidden="true" data-eyes="0.5 0.28" data-reach="3">
         <ellipse class="shadow" cx="50" cy="113" rx="28" ry="4"/>
         <g class="bob">
           <g class="hop">
@@ -181,8 +188,53 @@
         <g class="dots"><circle cx="80" cy="12" r="2.5"/><circle cx="87" cy="6" r="3"/><circle cx="95" cy="-1" r="3.5"/></g>
         <g class="zz"><text x="76" y="14">z</text><text x="84" y="5">z</text><text x="93" y="-4">Z</text></g>
       </svg>
-    </button>
-  </div>
+  </template>
+  <template id="buddy-capy">
+      <svg viewBox="0 0 100 118" aria-hidden="true" data-eyes="0.5 0.33" data-reach="2">
+        <ellipse class="shadow" cx="50" cy="113" rx="32" ry="4"/>
+        <g class="bob">
+          <g class="hop">
+            <ellipse class="fur" cx="50" cy="90" rx="35" ry="21"/>
+            <ellipse class="fur-light" cx="50" cy="94" rx="18" ry="13"/>
+            <ellipse class="fur-dark" cx="37" cy="109" rx="8" ry="4.5"/>
+            <ellipse class="fur-dark" cx="63" cy="109" rx="8" ry="4.5"/>
+            <g class="tilt">
+              <ellipse class="fur-dark" cx="30" cy="26" rx="5" ry="4"/>
+              <ellipse class="fur-dark" cx="70" cy="26" rx="5" ry="4"/>
+              <rect class="fur" x="16" y="24" width="68" height="48" rx="20"/>
+              <circle class="fruit" cx="50" cy="20" r="9"/>
+              <ellipse class="leaf" cx="55" cy="11" rx="4.5" ry="2.2" transform="rotate(-30 55 11)"/>
+              <ellipse class="glint" cx="46.5" cy="16.5" rx="2.6" ry="1.6" transform="rotate(-30 46.5 16.5)"/>
+              <ellipse class="snout" cx="50" cy="58" rx="22" ry="13"/>
+              <ellipse class="ink" cx="43" cy="53" rx="2.6" ry="1.6"/>
+              <ellipse class="ink" cx="57" cy="53" rx="2.6" ry="1.6"/>
+              <path class="line thin" d="M50 55 L50 61"/>
+              <ellipse class="cheek" cx="25" cy="50" rx="4" ry="2.6"/>
+              <ellipse class="cheek" cx="75" cy="50" rx="4" ry="2.6"/>
+              <g class="eyes">
+                <ellipse class="eye" cx="34" cy="38" rx="4.6" ry="5"/>
+                <ellipse class="eye" cx="66" cy="38" rx="4.6" ry="5"/>
+                <g class="pupils">
+                  <circle class="ink" cx="34.4" cy="38.4" r="2.7"/>
+                  <circle class="ink" cx="66.4" cy="38.4" r="2.7"/>
+                  <circle class="eye" cx="35.4" cy="37.3" r="0.85"/>
+                  <circle class="eye" cx="67.4" cy="37.3" r="0.85"/>
+                </g>
+              </g>
+              <g class="happy-eyes line"><path d="M29 39 Q34 33 39 39"/><path d="M61 39 Q66 33 71 39"/></g>
+              <g class="sleep-eyes line"><path d="M29 38 Q34 42 39 38"/><path d="M61 38 Q66 42 71 38"/></g>
+              <g class="brows line"><path d="M28 31 L39 28"/><path d="M61 28 L72 31"/></g>
+              <path class="mouth mouth-smile line" d="M43 62 Q50 67 57 62"/>
+              <path class="mouth mouth-open ink" d="M43 61 Q50 71 57 61 Z"/>
+              <path class="mouth mouth-flat line" d="M45 63 L55 63"/>
+              <path class="mouth mouth-sad line" d="M43 65 Q50 60 57 65"/>
+            </g>
+          </g>
+        </g>
+        <g class="dots"><circle cx="80" cy="12" r="2.5"/><circle cx="87" cy="6" r="3"/><circle cx="95" cy="-1" r="3.5"/></g>
+        <g class="zz"><text x="76" y="14">z</text><text x="84" y="5">z</text><text x="93" y="-4">Z</text></g>
+      </svg>
+  </template>
 
   <script type="module" src="app.js"></script>
 </body>

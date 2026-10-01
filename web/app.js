@@ -289,6 +289,30 @@ const exerciseDrawing = enableDrawing($("#exercise-board"), $("#exercise-arrows"
 // ---------- buddy ----------
 
 const SLEEP_MS = 90_000;
+
+/** The companions the user can pick. Each one has its own look (a <template>) and its own lines. */
+const CHARACTERS = {
+  pawn: {
+    label: "Buddy, o peão mascote do ChessBuddy. Clique para conversar.",
+    hello: "Oi! Eu sou o Buddy. Coloca seu usuário do Lichess ali em cima e bora revisar.",
+    helloUser: (user) => `Oi, ${user}! Bora revisar umas partidas?`,
+    arrive: "Voltei! O Buddy na área.",
+    tickle: "Hihi, para! Cócegas não!",
+    tips: [],
+  },
+  capy: {
+    label: "Capi, a capivara mascote do ChessBuddy. Clique para conversar.",
+    hello: "Oi! Eu sou a Capi, a capivara. Coloca seu usuário do Lichess ali em cima que a gente revisa na calma.",
+    helloUser: (user) => `E aí, ${user}! Bora revisar umas partidas, sem pressa?`,
+    arrive: "E aí! Agora quem te acompanha sou eu, a Capi. Sem estresse.",
+    tickle: "Ai, cócegas não! Sou uma capivara séria.",
+    tips: [
+      "Errou feio? Respira. Capivara não se estressa nem com erro grave.",
+      "Dica de capivara: pensa devagar e joga com calma.",
+    ],
+  },
+};
+
 const TIPS = [
   "Me pergunta \"e se Nd7?\" que eu confiro o lance no Stockfish.",
   "Nos exercícios, arraste com o botão direito para desenhar setas no tabuleiro.",
@@ -303,7 +327,7 @@ const TIPS = [
  * lasting ones: thinking while a request runs, watching during a live game,
  * sleeping after a while without activity.
  */
-const buddyState = { mood: null, busy: 0, watching: false, sleeping: false, lastActivity: Date.now(), moodTimer: null, bubbleTimer: null, pokes: [], tip: -1 };
+const buddyState = { character: "pawn", mood: null, busy: 0, watching: false, sleeping: false, lastActivity: Date.now(), moodTimer: null, bubbleTimer: null, pokes: [], tip: -1 };
 
 function renderBuddy() {
   const b = buddyState;
@@ -354,11 +378,32 @@ $("#buddy-body").addEventListener("click", () => {
   const now = Date.now();
   buddyState.pokes = [...buddyState.pokes.filter((t) => now - t < 1500), now];
   buddyHop();
-  if (buddyState.pokes.length >= 3) return buddy("happy", "Hihi, para! Cócegas não!", 2500);
+  const character = CHARACTERS[buddyState.character];
+  if (buddyState.pokes.length >= 3) return buddy("happy", character.tickle, 2500);
   if (buddyState.watching) return buddy(null, "Shh… só observando até a partida acabar.");
   if (buddyState.busy) return buddy(null, "Calma, tô pensando…", 2500);
-  buddyState.tip = (buddyState.tip + 1 + Math.floor(Math.random() * (TIPS.length - 1))) % TIPS.length;
-  buddy("talking", TIPS[buddyState.tip], 6000);
+  const tips = [...TIPS, ...character.tips];
+  buddyState.tip = (buddyState.tip + 1 + Math.floor(Math.random() * (tips.length - 1))) % tips.length;
+  buddy("talking", tips[buddyState.tip], 6000);
+});
+
+/** Puts companion `id` on screen; `announce` lets it introduce itself. */
+function setCharacter(id, announce = false) {
+  if (!CHARACTERS[id]) id = "pawn";
+  buddyState.character = id;
+  $("#buddy").dataset.character = id;
+  $("#buddy-body").replaceChildren($(`#buddy-${id}`).content.cloneNode(true));
+  $("#buddy-body").setAttribute("aria-label", CHARACTERS[id].label);
+  renderBuddy();
+  if (announce) buddy("happy", CHARACTERS[id].arrive);
+}
+
+setCharacter(load("buddy") ?? "pawn");
+$("#buddy-swap").addEventListener("click", () => {
+  const ids = Object.keys(CHARACTERS);
+  const next = ids[(ids.indexOf(buddyState.character) + 1) % ids.length];
+  save("buddy", next);
+  setCharacter(next, true);
 });
 $("#buddy-bubble").addEventListener("click", () => { $("#buddy-bubble").hidden = true; });
 
@@ -462,11 +507,14 @@ document.addEventListener("pointermove", (event) => {
   if (lookFrame) return;
   lookFrame = requestAnimationFrame(() => {
     lookFrame = 0;
-    const box = $("#buddy svg").getBoundingClientRect();
-    const dx = event.clientX - (box.left + box.width * 0.5);
-    const dy = event.clientY - (box.top + box.height * 0.28);
+    const svg = $("#buddy-body svg");
+    const box = svg.getBoundingClientRect();
+    // Each companion says where its eyes are and how far its pupils may travel.
+    const [eyeX, eyeY] = svg.dataset.eyes.split(" ").map(Number);
+    const dx = event.clientX - (box.left + box.width * eyeX);
+    const dy = event.clientY - (box.top + box.height * eyeY);
     const distance = Math.hypot(dx, dy) || 1;
-    const reach = Math.min(3, distance / 40);
+    const reach = Math.min(Number(svg.dataset.reach), distance / 40);
     $("#buddy .pupils").setAttribute("transform", `translate(${(dx / distance) * reach} ${(dy / distance) * reach})`);
   });
 });
@@ -1144,7 +1192,6 @@ checkStatus();
 setInterval(checkStatus, 30_000);
 setTimeout(() => {
   if (buddyState.watching) return;
-  buddy("happy", state.username
-    ? `Oi, ${state.username}! Bora revisar umas partidas?`
-    : "Oi! Eu sou o Buddy. Coloca seu usuário do Lichess ali em cima e bora revisar.", 6000);
+  const character = CHARACTERS[buddyState.character];
+  buddy("happy", state.username ? character.helloUser(state.username) : character.hello, 6000);
 }, 600);
